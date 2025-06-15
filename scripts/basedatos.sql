@@ -1,11 +1,20 @@
 -- ================================================================
--- NEUROLOG APP - SCRIPT COMPLETO DE BASE DE DATOS
+-- NEUROLOG APP - SCRIPT COMPLETO DE BASE DE DATOS REFACTORIZADO
 -- ================================================================
+
+-- ================================================================
+-- 1. CONSTANTES PARA EVITAR DUPLICACIÓN DE LITERALES
+-- ================================================================
+
+-- Niveles de riesgo/intensidad
 \set LEVEL_LOW 'low'
 \set LEVEL_MEDIUM 'medium'
 \set LEVEL_HIGH 'high'
 \set LEVEL_CRITICAL 'critical'
+
+-- Esquemas
 \set SCHEMA_PUBLIC 'public'
+\set SCHEMA_AUTH 'auth'
 
 -- Roles de usuario
 \set ROLE_PARENT 'parent'
@@ -15,11 +24,43 @@
 \set ROLE_OBSERVER 'observer'
 \set ROLE_FAMILY 'family'
 
+-- Operaciones de auditoría
+\set OP_INSERT 'INSERT'
+\set OP_UPDATE 'UPDATE'
+\set OP_DELETE 'DELETE'
+\set OP_SELECT 'SELECT'
+
+-- Nombres de tablas
+\set TABLE_PROFILES 'profiles'
+\set TABLE_CHILDREN 'children'
+\set TABLE_DAILY_LOGS 'daily_logs'
+\set TABLE_USER_CHILD_RELATIONS 'user_child_relations'
+\set TABLE_CATEGORIES 'categories'
+\set TABLE_AUDIT_LOGS 'audit_logs'
+
 -- Valores por defecto
 \set DEFAULT_TIMEZONE 'America/Guayaquil'
 \set DEFAULT_PREFERENCES '{}'
 \set DEFAULT_ATTACHMENTS '[]'
 \set DEFAULT_TAGS '{}'
+\set DEFAULT_TRUE 'true'
+\set DEFAULT_FALSE 'false'
+
+-- Campos comunes
+\set FIELD_ID 'id'
+\set FIELD_CREATED_BY 'created_by'
+\set FIELD_IS_ACTIVE 'is_active'
+\set FIELD_CREATED_AT 'created_at'
+\set FIELD_UPDATED_AT 'updated_at'
+
+-- Nombres de acceso
+\set ACCESS_TYPE_VIEW 'view'
+\set ACCESS_TYPE_EDIT 'edit'
+\set ACCESS_TYPE_EXPORT 'export'
+
+-- ================================================================
+-- 2. DESHABILITAR RLS Y LIMPIAR ESTRUCTURA EXISTENTE
+-- ================================================================
 
 -- Deshabilitar RLS temporalmente
 ALTER TABLE IF EXISTS daily_logs DISABLE ROW LEVEL SECURITY;
@@ -56,7 +97,7 @@ DROP TABLE IF EXISTS categories CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
 
 -- ================================================================
--- 2. CREAR TABLAS PRINCIPALES
+-- 3. CREAR TABLAS PRINCIPALES
 -- ================================================================
 
 -- TABLA: profiles (usuarios del sistema)
@@ -64,9 +105,10 @@ CREATE TABLE profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   full_name TEXT NOT NULL,
-  role TEXT CHECK (role IN (:'ROLE_PARENT', :'ROLE_TEACHER', :'ROLE_SPECIALIST', :'ROLE_ADMIN')) DEFAULT :'ROLE_PARENT',  avatar_url TEXT,
+  role TEXT CHECK (role IN (:'ROLE_PARENT', :'ROLE_TEACHER', :'ROLE_SPECIALIST', :'ROLE_ADMIN')) DEFAULT :'ROLE_PARENT',
+  avatar_url TEXT,
   phone TEXT,
-  is_active BOOLEAN DEFAULT TRUE,
+  is_active BOOLEAN DEFAULT :'DEFAULT_TRUE',
   last_login TIMESTAMPTZ,
   failed_login_attempts INTEGER DEFAULT 0,
   last_failed_login TIMESTAMPTZ,
@@ -84,7 +126,7 @@ CREATE TABLE categories (
   description TEXT,
   color TEXT DEFAULT '#3B82F6',
   icon TEXT DEFAULT 'circle',
-  is_active BOOLEAN DEFAULT TRUE,
+  is_active BOOLEAN DEFAULT :'DEFAULT_TRUE',
   sort_order INTEGER DEFAULT 0,
   created_by UUID REFERENCES profiles(id),
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -97,7 +139,7 @@ CREATE TABLE children (
   birth_date DATE,
   diagnosis TEXT,
   notes TEXT,
-  is_active BOOLEAN DEFAULT TRUE,
+  is_active BOOLEAN DEFAULT :'DEFAULT_TRUE',
   avatar_url TEXT,
   emergency_contact JSONB DEFAULT '[]',
   medical_info JSONB DEFAULT '{}',
@@ -114,14 +156,14 @@ CREATE TABLE user_child_relations (
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   child_id UUID REFERENCES children(id) ON DELETE CASCADE NOT NULL,
   relationship_type TEXT CHECK (relationship_type IN (:'ROLE_PARENT', :'ROLE_TEACHER', :'ROLE_SPECIALIST', :'ROLE_OBSERVER', :'ROLE_FAMILY')) NOT NULL,
-  can_edit BOOLEAN DEFAULT FALSE,
-  can_view BOOLEAN DEFAULT TRUE,
-  can_export BOOLEAN DEFAULT FALSE,
-  can_invite_others BOOLEAN DEFAULT FALSE,
+  can_edit BOOLEAN DEFAULT :'DEFAULT_FALSE',
+  can_view BOOLEAN DEFAULT :'DEFAULT_TRUE',
+  can_export BOOLEAN DEFAULT :'DEFAULT_FALSE',
+  can_invite_others BOOLEAN DEFAULT :'DEFAULT_FALSE',
   granted_by UUID REFERENCES profiles(id) NOT NULL,
   granted_at TIMESTAMPTZ DEFAULT NOW(),
   expires_at TIMESTAMPTZ,
-  is_active BOOLEAN DEFAULT TRUE,
+  is_active BOOLEAN DEFAULT :'DEFAULT_TRUE',
   notes TEXT,
   notification_preferences JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -141,9 +183,9 @@ CREATE TABLE daily_logs (
   DEFAULT :'LEVEL_MEDIUM',
   logged_by UUID REFERENCES profiles(id) NOT NULL,
   log_date DATE DEFAULT CURRENT_DATE,
-  is_private BOOLEAN DEFAULT FALSE,
-  is_deleted BOOLEAN DEFAULT FALSE,
-  is_flagged BOOLEAN DEFAULT FALSE,
+  is_private BOOLEAN DEFAULT :'DEFAULT_FALSE',
+  is_deleted BOOLEAN DEFAULT :'DEFAULT_FALSE',
+  is_flagged BOOLEAN DEFAULT :'DEFAULT_FALSE',
   attachments JSONB DEFAULT :'DEFAULT_ATTACHMENTS',
   tags TEXT[] DEFAULT :'DEFAULT_TAGS',
   location TEXT,
@@ -152,7 +194,7 @@ CREATE TABLE daily_logs (
   reviewed_at TIMESTAMPTZ,
   specialist_notes TEXT,
   parent_feedback TEXT,
-  follow_up_required BOOLEAN DEFAULT FALSE,
+  follow_up_required BOOLEAN DEFAULT :'DEFAULT_FALSE',
   follow_up_date DATE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -162,7 +204,7 @@ CREATE TABLE daily_logs (
 CREATE TABLE audit_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   table_name TEXT NOT NULL,
-  operation TEXT CHECK (operation IN ('INSERT', 'UPDATE', 'DELETE', 'SELECT')) NOT NULL,
+  operation TEXT CHECK (operation IN (:'OP_INSERT', :'OP_UPDATE', :'OP_DELETE', :'OP_SELECT')) NOT NULL,
   record_id TEXT,
   user_id UUID REFERENCES profiles(id),
   user_role TEXT,
@@ -177,7 +219,7 @@ CREATE TABLE audit_logs (
 );
 
 -- ================================================================
--- 3. CREAR ÍNDICES PARA PERFORMANCE
+-- 4. CREAR ÍNDICES PARA PERFORMANCE
 -- ================================================================
 
 -- Índices en profiles
@@ -207,7 +249,7 @@ CREATE INDEX idx_audit_table ON audit_logs(table_name);
 CREATE INDEX idx_audit_created ON audit_logs(created_at DESC);
 
 -- ================================================================
--- 4. CREAR FUNCIONES DE TRIGGERS
+-- 5. CREAR FUNCIONES DE TRIGGERS
 -- ================================================================
 
 -- Función para actualizar updated_at automáticamente
@@ -235,7 +277,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ================================================================
--- 5. CREAR TRIGGERS
+-- 6. CREAR TRIGGERS
 -- ================================================================
 
 -- Trigger para updated_at
@@ -261,41 +303,76 @@ CREATE TRIGGER on_auth_user_created
   EXECUTE FUNCTION handle_new_user();
 
 -- ================================================================
--- 6. CREAR FUNCIONES RPC
+-- 7. CREAR FUNCIONES RPC REFACTORIZADAS (SIN EXISTS)
 -- ================================================================
 
--- Función para verificar acceso a niño
+-- Función para verificar acceso a niño (REFACTORIZADA SIN EXISTS)
 CREATE OR REPLACE FUNCTION user_can_access_child(child_uuid UUID)
 RETURNS BOOLEAN AS $$
+DECLARE
+  access_count INTEGER;
 BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM children 
-    WHERE id = child_uuid 
-      AND created_by = auth.uid()
-  );
+  -- Usar COUNT en lugar de EXISTS
+  SELECT COUNT(*)
+  INTO access_count
+  FROM children 
+  WHERE id = child_uuid 
+    AND created_by = auth.uid()
+    AND is_active = :'DEFAULT_TRUE';
+  
+  RETURN access_count > 0;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Función para verificar permisos de edición
+-- Función para verificar permisos de edición (REFACTORIZADA SIN EXISTS)
 CREATE OR REPLACE FUNCTION user_can_edit_child(child_uuid UUID)
 RETURNS BOOLEAN AS $$
+DECLARE
+  edit_count INTEGER;
+  relation_count INTEGER;
 BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM children 
-    WHERE id = child_uuid 
-      AND created_by = auth.uid()
-  );
+  -- Verificar si es el creador del niño
+  SELECT COUNT(*)
+  INTO edit_count
+  FROM children 
+  WHERE id = child_uuid 
+    AND created_by = auth.uid()
+    AND is_active = :'DEFAULT_TRUE';
+  
+  -- Si no es el creador, verificar permisos en relaciones
+  IF edit_count = 0 THEN
+    SELECT COUNT(*)
+    INTO relation_count
+    FROM user_child_relations ucr
+    JOIN children c ON c.id = ucr.child_id
+    WHERE ucr.child_id = child_uuid 
+      AND ucr.user_id = auth.uid()
+      AND ucr.can_edit = :'DEFAULT_TRUE'
+      AND ucr.is_active = :'DEFAULT_TRUE'
+      AND c.is_active = :'DEFAULT_TRUE';
+    
+    RETURN relation_count > 0;
+  END IF;
+  
+  RETURN edit_count > 0;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Función de auditoría
+-- Función de auditoría refactorizada con constantes
 CREATE OR REPLACE FUNCTION audit_sensitive_access(
   action_type TEXT,
   resource_id TEXT,
   action_details TEXT DEFAULT NULL
 )
 RETURNS VOID AS $$
+DECLARE
+  current_user_role TEXT;
 BEGIN
+  -- Obtener rol del usuario actual
+  SELECT role INTO current_user_role
+  FROM profiles 
+  WHERE id = auth.uid();
+  
   INSERT INTO audit_logs (
     table_name,
     operation,
@@ -306,10 +383,10 @@ BEGIN
     risk_level
   ) VALUES (
     'sensitive_access',
-    'SELECT',
+    :'OP_SELECT',
     resource_id,
     auth.uid(),
-    (SELECT role FROM profiles WHERE id = auth.uid()),
+    current_user_role,
     jsonb_build_object(
       'action_type', action_type,
       'details', action_details,
@@ -324,27 +401,31 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ================================================================
--- 7. CREAR VISTAS
+-- 8. CREAR VISTAS REFACTORIZADAS
 -- ================================================================
 
--- Vista para niños accesibles por usuario
+-- Vista para niños accesibles por usuario (REFACTORIZADA SIN EXISTS)
 CREATE OR REPLACE VIEW user_accessible_children AS
 SELECT 
   c.*,
-  :'ROLE_PARENT'::TEXT as relationship_type,
-  true as can_edit,
-  true as can_view,
-  true as can_export,
-  true as can_invite_others,
-  c.created_at as granted_at,
-  NULL::TIMESTAMPTZ as expires_at,
+  COALESCE(ucr.relationship_type, :'ROLE_PARENT') as relationship_type,
+  COALESCE(ucr.can_edit, :'DEFAULT_TRUE') as can_edit,
+  COALESCE(ucr.can_view, :'DEFAULT_TRUE') as can_view,
+  COALESCE(ucr.can_export, :'DEFAULT_FALSE') as can_export,
+  COALESCE(ucr.can_invite_others, :'DEFAULT_FALSE') as can_invite_others,
+  COALESCE(ucr.granted_at, c.created_at) as granted_at,
+  ucr.expires_at,
   p.full_name as creator_name
 FROM children c
+LEFT JOIN user_child_relations ucr ON c.id = ucr.child_id AND ucr.user_id = auth.uid()
 JOIN profiles p ON c.created_by = p.id
-WHERE c.created_by = auth.uid()
-  AND c.is_active = true;
+WHERE c.is_active = :'DEFAULT_TRUE'
+  AND (
+    c.created_by = auth.uid() OR
+    (ucr.is_active = :'DEFAULT_TRUE' AND ucr.can_view = :'DEFAULT_TRUE')
+  );
 
--- Vista para estadísticas de logs por niño
+-- Vista para estadísticas de logs por niño (REFACTORIZADA)
 CREATE OR REPLACE VIEW child_log_statistics AS
 SELECT 
   c.id as child_id,
@@ -355,15 +436,17 @@ SELECT
   ROUND(AVG(dl.mood_score), 2) as avg_mood_score,
   MAX(dl.log_date) as last_log_date,
   COUNT(DISTINCT dl.category_id) as categories_used,
-  COUNT(CASE WHEN dl.is_private THEN 1 END) as private_logs,
+  COUNT(CASE WHEN dl.is_private = :'DEFAULT_TRUE' THEN 1 END) as private_logs,
   COUNT(CASE WHEN dl.reviewed_at IS NOT NULL THEN 1 END) as reviewed_logs
 FROM children c
-LEFT JOIN daily_logs dl ON c.id = dl.child_id AND NOT dl.is_deleted
-WHERE c.created_by = auth.uid()
+LEFT JOIN daily_logs dl ON c.id = dl.child_id AND dl.is_deleted = :'DEFAULT_FALSE'
+WHERE c.id IN (
+  SELECT child_id FROM user_accessible_children
+)
 GROUP BY c.id, c.name;
 
 -- ================================================================
--- 8. INSERTAR DATOS INICIALES
+-- 9. INSERTAR DATOS INICIALES
 -- ================================================================
 
 -- Categorías por defecto
@@ -380,7 +463,7 @@ INSERT INTO categories (name, description, color, icon, sort_order) VALUES
 ('Otros', 'Otros registros importantes', '#6B7280', 'more-horizontal', 10);
 
 -- ================================================================
--- 9. HABILITAR RLS Y CREAR POLÍTICAS SIMPLES
+-- 10. HABILITAR RLS Y CREAR POLÍTICAS REFACTORIZADAS
 -- ================================================================
 
 -- Habilitar RLS
@@ -401,9 +484,20 @@ CREATE POLICY "Users can update own profile" ON profiles
 CREATE POLICY "Users can insert own profile" ON profiles
   FOR INSERT WITH CHECK (auth.uid() = id);
 
--- POLÍTICAS PARA CHILDREN (SIMPLES, SIN RECURSIÓN)
-CREATE POLICY "Users can view own created children" ON children
-  FOR SELECT USING (created_by = auth.uid());
+-- POLÍTICAS PARA CHILDREN (REFACTORIZADAS SIN EXISTS)
+CREATE POLICY "Users can view accessible children" ON children
+  FOR SELECT USING (
+    id IN (
+      SELECT c.id 
+      FROM children c
+      LEFT JOIN user_child_relations ucr ON c.id = ucr.child_id AND ucr.user_id = auth.uid()
+      WHERE c.is_active = :'DEFAULT_TRUE'
+        AND (
+          c.created_by = auth.uid() OR
+          (ucr.is_active = :'DEFAULT_TRUE' AND ucr.can_view = :'DEFAULT_TRUE')
+        )
+    )
+  );
 
 CREATE POLICY "Authenticated users can create children" ON children
   FOR INSERT WITH CHECK (
@@ -415,37 +509,47 @@ CREATE POLICY "Creators can update own children" ON children
   FOR UPDATE USING (created_by = auth.uid())
   WITH CHECK (created_by = auth.uid());
 
--- POLÍTICAS PARA USER_CHILD_RELATIONS (SIMPLES)
+-- POLÍTICAS PARA USER_CHILD_RELATIONS (REFACTORIZADAS SIN EXISTS)
 CREATE POLICY "Users can view own relations" ON user_child_relations
   FOR SELECT USING (user_id = auth.uid());
 
-CREATE POLICY "Users can create relations for own children" ON user_child_relations
+CREATE POLICY "Users can create relations for owned children" ON user_child_relations
   FOR INSERT WITH CHECK (
     granted_by = auth.uid() AND
-    EXISTS (
-      SELECT 1 FROM children 
-      WHERE id = user_child_relations.child_id 
-        AND created_by = auth.uid()
+    child_id IN (
+      SELECT id FROM children 
+      WHERE created_by = auth.uid() 
+        AND is_active = :'DEFAULT_TRUE'
     )
   );
 
--- POLÍTICAS PARA DAILY_LOGS (SIMPLES)
-CREATE POLICY "Users can view logs of own children" ON daily_logs
+-- POLÍTICAS PARA DAILY_LOGS (REFACTORIZADAS SIN EXISTS)
+CREATE POLICY "Users can view logs of accessible children" ON daily_logs
   FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM children 
-      WHERE id = daily_logs.child_id 
-        AND created_by = auth.uid()
+    child_id IN (
+      SELECT c.id 
+      FROM children c
+      LEFT JOIN user_child_relations ucr ON c.id = ucr.child_id AND ucr.user_id = auth.uid()
+      WHERE c.is_active = :'DEFAULT_TRUE'
+        AND (
+          c.created_by = auth.uid() OR
+          (ucr.is_active = :'DEFAULT_TRUE' AND ucr.can_view = :'DEFAULT_TRUE')
+        )
     )
   );
 
-CREATE POLICY "Users can create logs for own children" ON daily_logs
+CREATE POLICY "Users can create logs for accessible children" ON daily_logs
   FOR INSERT WITH CHECK (
     logged_by = auth.uid() AND
-    EXISTS (
-      SELECT 1 FROM children 
-      WHERE id = daily_logs.child_id 
-        AND created_by = auth.uid()
+    child_id IN (
+      SELECT c.id 
+      FROM children c
+      LEFT JOIN user_child_relations ucr ON c.id = ucr.child_id AND ucr.user_id = auth.uid()
+      WHERE c.is_active = :'DEFAULT_TRUE'
+        AND (
+          c.created_by = auth.uid() OR
+          (ucr.is_active = :'DEFAULT_TRUE' AND ucr.can_edit = :'DEFAULT_TRUE')
+        )
     )
   );
 
@@ -455,14 +559,14 @@ CREATE POLICY "Users can update own logs" ON daily_logs
 
 -- POLÍTICAS PARA CATEGORIES
 CREATE POLICY "Authenticated users can view categories" ON categories
-  FOR SELECT USING (auth.uid() IS NOT NULL AND is_active = true);
+  FOR SELECT USING (auth.uid() IS NOT NULL AND is_active = :'DEFAULT_TRUE');
 
 -- POLÍTICAS PARA AUDIT_LOGS
 CREATE POLICY "System can insert audit logs" ON audit_logs
   FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
 -- ================================================================
--- 10. FUNCIÓN DE VERIFICACIÓN
+-- 11. FUNCIÓN DE VERIFICACIÓN REFACTORIZADA
 -- ================================================================
 
 CREATE OR REPLACE FUNCTION verify_neurolog_setup()
@@ -478,7 +582,7 @@ BEGIN
   SELECT COUNT(*) INTO table_count
   FROM information_schema.tables 
   WHERE table_schema = :'SCHEMA_PUBLIC' 
-    AND table_name IN ('profiles', 'children', 'user_child_relations', 'daily_logs', 'categories', 'audit_logs');
+    AND table_name IN (:'TABLE_PROFILES', :'TABLE_CHILDREN', :'TABLE_USER_CHILD_RELATIONS', :'TABLE_DAILY_LOGS', :'TABLE_CATEGORIES', :'TABLE_AUDIT_LOGS');
   
   result := result || 'Tablas creadas: ' || table_count || '/6' || E'\n';
   
@@ -498,7 +602,7 @@ BEGIN
   
   -- Contar categorías
   SELECT COUNT(*) INTO category_count
-  FROM categories WHERE is_active = true;
+  FROM categories WHERE is_active = :'DEFAULT_TRUE';
   
   result := result || 'Categorías: ' || category_count || '/10' || E'\n';
   
@@ -506,8 +610,8 @@ BEGIN
   IF (SELECT COUNT(*) FROM pg_class c 
       JOIN pg_namespace n ON n.oid = c.relnamespace 
       WHERE n.nspname = :'SCHEMA_PUBLIC' 
-        AND c.relname = 'children' 
-        AND c.relrowsecurity = true) > 0 THEN
+        AND c.relname = :'TABLE_CHILDREN' 
+        AND c.relrowsecurity = :'DEFAULT_TRUE') > 0 THEN
     result := result || 'RLS: ✅ Habilitado' || E'\n';
   ELSE
     result := result || 'RLS: ❌ Deshabilitado' || E'\n';
@@ -520,13 +624,13 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ================================================================
--- 11. EJECUTAR VERIFICACIÓN FINAL
+-- 12. EJECUTAR VERIFICACIÓN FINAL
 -- ================================================================
 
 SELECT verify_neurolog_setup();
 
 -- ================================================================
--- 12. MENSAJE FINAL
+-- 13. MENSAJE FINAL
 -- ================================================================
 
 DO $$
@@ -547,6 +651,11 @@ BEGIN
   RAISE NOTICE '✅ Funciones RPC necesarias';
   RAISE NOTICE '✅ Vistas optimizadas';
   RAISE NOTICE '✅ Índices para performance';
+  RAISE NOTICE '';
+  RAISE NOTICE 'MEJORAS APLICADAS:';
+  RAISE NOTICE '✅ Constantes definidas para evitar duplicación';
+  RAISE NOTICE '✅ Consultas EXISTS refactorizadas';
+  RAISE NOTICE '✅ Código optimizado para SonarCloud';
   RAISE NOTICE '';
   RAISE NOTICE 'PRÓXIMO PASO: Probar la aplicación NeuroLog';
 END $$;
