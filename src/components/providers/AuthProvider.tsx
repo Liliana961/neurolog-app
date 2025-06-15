@@ -15,6 +15,8 @@ import React, {
 } from 'react';
 import { createClient } from '@/lib/supabase';
 import type { Profile, UserRole } from '@/types';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+
 
 // ================================================================
 // TIPOS DEL CONTEXTO
@@ -367,57 +369,78 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>): JSX.Ele
     /**
      *  LISTENER DE AUTH MEJORADO - UNA SOLA SUBSCRIPCIÓN
      */
-    const setupAuthListener = () => {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          if (!mountedRef.current) return;
+  // Añadir estas importaciones al inicio del archivo
 
-          console.log('🔄 Auth state changed:', event);
-
-          try {
-            if (event === 'SIGNED_IN' && session?.user) {
-              console.log('✅ User signed in, fetching profile...');
-              setLoading(true);
-              
-              await updateLastLogin(session.user.id);
-              
-              const profile = await fetchProfile(session.user.id);
-              if (profile && mountedRef.current) {
-                setUser(profile);
-                
-                const adminStatus = await checkAdminStatus(session.user.id);
-                if (mountedRef.current) {
-                  setIsAdmin(adminStatus);
-                }
-              }
-            } else if (event === 'SIGNED_OUT') {
-              console.log('👋 User signed out');
-              if (mountedRef.current) {
-                setUser(null);
-                setIsAdmin(false);
-                setError(null);
-              }
-            } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-              console.log('🔄 Token refreshed, maintaining user state');
-              // No necesitamos recargar el perfil en token refresh
-              // El usuario ya está cargado y el token se renovó automáticamente
-            }
-          } catch (err) {
-            console.error('❌ Error handling auth state change:', err);
-            if (mountedRef.current) {
-              setError('Error en el cambio de estado de autenticación');
-            }
-          } finally {
-            if (mountedRef.current) {
-              setLoading(false);
-            }
-          }
+  const setupAuthListener = () => {
+    // Handlers separados para cada evento
+    const handleSignedIn = async (session: Session) => {
+      if (!mountedRef.current) return;
+      
+      console.log('✅ User signed in, fetching profile...');
+      setLoading(true);
+      
+      await updateLastLogin(session.user.id);
+      const profile = await fetchProfile(session.user.id);
+      
+      if (profile && mountedRef.current) {
+        setUser(profile);
+        const adminStatus = await checkAdminStatus(session.user.id);
+        
+        if (mountedRef.current) {
+          setIsAdmin(adminStatus);
         }
-      );
-
-      authSubscriptionRef.current = subscription;
-      return subscription;
+      }
     };
+
+    const handleSignedOut = () => {
+      console.log('👋 User signed out');
+      
+      if (mountedRef.current) {
+        setUser(null);
+        setIsAdmin(false);
+        setError(null);
+      }
+    };
+
+    const handleTokenRefreshed = () => {
+      console.log('🔄 Token refreshed, maintaining user state');
+      // No necesitamos recargar el perfil en token refresh
+    };
+
+    const handleAuthStateChange = async (event: AuthChangeEvent, session: Session | null) => {
+      if (!mountedRef.current) return;
+      
+      console.log('🔄 Auth state changed:', event);
+      
+      try {
+        switch (event) {
+          case 'SIGNED_IN':
+            if (session?.user) {
+              await handleSignedIn(session);
+            }
+            break;
+          case 'SIGNED_OUT':
+            handleSignedOut();
+            break;
+          case 'TOKEN_REFRESHED':
+            handleTokenRefreshed();
+            break;
+        }
+      } catch (err) {
+        console.error('❌ Error handling auth state change:', err);
+        if (mountedRef.current) {
+          setError('Error en el cambio de estado de autenticación');
+        }
+      } finally {
+        if (mountedRef.current) {
+          setLoading(false);
+        }
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    return subscription;
+  };
 
     //  INICIALIZAR 
     initializeAuth();

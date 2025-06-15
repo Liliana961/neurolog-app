@@ -1,5 +1,5 @@
 // ================================================================
-// src/hooks/use-children.ts - VERSIÓN FINAL OPTIMIZADA
+// src/hooks/use-children.ts - VERSIÓN REFACTORIZADA
 // ================================================================
 
 'use client';
@@ -39,13 +39,140 @@ interface UseChildrenReturn {
 }
 
 // ================================================================
-// HOOK PRINCIPAL OPTIMIZADO
+// HELPER FUNCTIONS - Extraídas para reducir complejidad
+// ================================================================
+
+const getDefaultPrivacySettings = () => ({
+  share_with_specialists: true,
+  share_progress_reports: true,
+  allow_photo_sharing: false,
+  data_retention_months: 36
+});
+
+const transformChildData = (child: any, userId: string): ChildWithRelation => ({
+  // Datos del niño
+  id: child.id!,
+  name: child.name!,
+  birth_date: child.birth_date,
+  diagnosis: child.diagnosis,
+  notes: child.notes,
+  is_active: child.is_active!,
+  avatar_url: child.avatar_url,
+  emergency_contact: child.emergency_contact ?? [],
+  medical_info: child.medical_info ?? {},
+  educational_info: child.educational_info ?? {},
+  privacy_settings: child.privacy_settings ?? getDefaultPrivacySettings(),
+  created_by: child.created_by!,
+  created_at: child.created_at!,
+  updated_at: child.updated_at!,
+  
+  // Datos de relación
+  user_id: userId,
+  relationship_type: child.relationship_type!,
+  can_view: child.can_view!,
+  can_edit: child.can_edit!,
+  can_export: child.can_export!,
+  can_invite_others: child.can_invite_others!,
+  granted_at: child.granted_at!,
+  expires_at: child.expires_at,
+  is_relation_active: true,
+  relation_created_at: child.granted_at!,
+  relation_expires_at: child.expires_at,
+  creator_name: child.creator_name ?? 'Usuario desconocido'
+});
+
+const handleAuditLog = async (action: string, userId: string, details: string) => {
+  try {
+    await auditSensitiveAccess(action, userId, details);
+  } catch (auditError) {
+    console.warn('⚠️ Audit error (ignored):', auditError);
+  }
+};
+
+const prepareChildInsertData = (childData: ChildInsert, userId: string) => ({
+  name: childData.name.trim(),
+  created_by: userId,
+  is_active: true,
+  birth_date: childData.birth_date?.trim() ?? null,
+  diagnosis: childData.diagnosis?.trim() ?? null,
+  notes: childData.notes?.trim() ?? null,
+  avatar_url: childData.avatar_url?.trim() ?? null,
+  emergency_contact: Array.isArray(childData.emergency_contact) ? childData.emergency_contact : [],
+  medical_info: {
+    allergies: [],
+    medications: [],
+    conditions: [],
+    emergency_notes: '',
+    ...childData.medical_info
+  },
+  educational_info: {
+    school: '',
+    grade: '',
+    teacher: '',
+    iep_goals: [],
+    accommodations: [],
+    ...childData.educational_info
+  },
+  privacy_settings: {
+    ...getDefaultPrivacySettings(),
+    ...childData.privacy_settings
+  }
+});
+
+const handleInsertError = (error: any) => {
+  console.error('❌ Insert error:', error);
+  
+  if (error.code === '42501') {
+    throw new Error('Sin permisos para crear niños. Verifica la configuración.');
+  }
+  if (error.code === '23505') {
+    throw new Error('Ya existe un niño con datos similares.');
+  }
+  if (error.code === '23514') {
+    throw new Error('Los datos no cumplen con las validaciones requeridas.');
+  }
+  throw new Error(`Error al crear niño: ${error.message}`);
+};
+
+const createParentRelation = async (supabase: any, userId: string, childId: string) => {
+  try {
+    const { error: relationError } = await supabase
+      .from('user_child_relations')
+      .insert({
+        user_id: userId,
+        child_id: childId,
+        relationship_type: 'parent',
+        can_edit: true,
+        can_view: true,
+        can_export: true,
+        can_invite_others: true,
+        granted_by: userId,
+        granted_at: new Date().toISOString(),
+        is_active: true,
+        notes: 'Relación creada automáticamente como creador',
+        notification_preferences: {
+          email_alerts: true,
+          weekly_reports: true
+        }
+      });
+
+    if (relationError) {
+      console.warn('⚠️ Relation creation failed (child created successfully):', relationError);
+    } else {
+      console.log('✅ Parent relation created successfully');
+    }
+  } catch (relationError) {
+    console.warn('⚠️ Relation error (ignored):', relationError);
+  }
+};
+
+// ================================================================
+// HOOK PRINCIPAL REFACTORIZADO
 // ================================================================
 
 export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn {
   const {
     includeInactive = false,
-    autoRefresh = true,
     realtime = true
   } = options;
 
@@ -69,104 +196,65 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
   }, [userId]);
 
   // ================================================================
-  // FUNCIÓN FETCH CHILDREN OPTIMIZADA
+  // FUNCIÓN FETCH CHILDREN REFACTORIZADA
   // ================================================================
 
   const fetchChildren = useCallback(async (): Promise<void> => {
-  if (!userId) {
-    setLoading(false);
-    return;
-  }
-
-  try {
-    setLoading(true);
-    setError(null);
-    console.log('👶 Fetching children for user:', userId);
-
-    // ✅ CORRECCIÓN: La vista ya filtra por auth.uid(), no necesita filtro adicional
-    const { data: childrenData, error: fetchError } = await supabase
-      .from('user_accessible_children')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (fetchError) {
-      console.error('❌ Error fetching children:', fetchError);
-      throw fetchError;
+    if (!userId) {
+      setLoading(false);
+      return;
     }
 
-    if (!mountedRef.current) return;
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('👶 Fetching children for user:', userId);
 
-    console.log('✅ Children data fetched:', childrenData?.length ?? 0);
+      const { data: childrenData, error: fetchError } = await supabase
+        .from('user_accessible_children')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    // Transformar a ChildWithRelation
-    const transformedChildren: ChildWithRelation[] = (childrenData ?? []).map(child => ({
-      // Datos del niño
-      id: child.id!,
-      name: child.name!,
-      birth_date: child.birth_date,
-      diagnosis: child.diagnosis,
-      notes: child.notes,
-      is_active: child.is_active!,
-      avatar_url: child.avatar_url,
-      emergency_contact: child.emergency_contact ?? [],
-      medical_info: child.medical_info ?? {},
-      educational_info: child.educational_info ?? {},
-      privacy_settings: child.privacy_settings ?? {
-        share_with_specialists: true,
-        share_progress_reports: true,
-        allow_photo_sharing: false,
-        data_retention_months: 36
-      },
-      created_by: child.created_by!,
-      created_at: child.created_at!,
-      updated_at: child.updated_at!,
-      
-      // Datos de relación (desde la vista)
-      user_id: userId,
-      relationship_type: child.relationship_type!,
-      can_view: child.can_view!,
-      can_edit: child.can_edit!,
-      can_export: child.can_export!,
-      can_invite_others: child.can_invite_others!,
-      granted_at: child.granted_at!,
-      expires_at: child.expires_at,
-      is_relation_active: true,
-      relation_created_at: child.granted_at!,
-      relation_expires_at: child.expires_at,
-      creator_name: child.creator_name ?? 'Usuario desconocido'
-    }));
+      if (fetchError) {
+        console.error('❌ Error fetching children:', fetchError);
+        throw fetchError;
+      }
 
-    setChildren(transformedChildren);
-    console.log('✅ Children processed successfully:', transformedChildren.length);
+      if (!mountedRef.current) return;
 
-    // Auditoría opcional
-    if (transformedChildren.length > 0) {
-      try {
-        await auditSensitiveAccess(
+      console.log('✅ Children data fetched:', childrenData?.length ?? 0);
+
+      // Transformar datos usando helper
+      const transformedChildren: ChildWithRelation[] = (childrenData ?? [])
+        .map(child => transformChildData(child, userId));
+
+      setChildren(transformedChildren);
+      console.log('✅ Children processed successfully:', transformedChildren.length);
+
+      // Auditoría usando helper
+      if (transformedChildren.length > 0) {
+        await handleAuditLog(
           'VIEW_CHILDREN_LIST',
           userId,
           `Accessed ${transformedChildren.length} children profiles`
         );
-      } catch (auditError) {
-        console.warn('⚠️ Audit error (ignored):', auditError);
+      }
+
+    } catch (err) {
+      console.error('❌ Error in fetchChildren:', err);
+      if (mountedRef.current) {
+        const errorMessage = err instanceof Error ? err.message : 'Error al cargar niños';
+        setError(errorMessage);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
       }
     }
-
-  } catch (err) {
-    console.error('❌ Error in fetchChildren:', err);
-    if (mountedRef.current) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al cargar niños';
-      setError(errorMessage);
-    }
-  } finally {
-    if (mountedRef.current) {
-      setLoading(false);
-    }
-  }
-}, [userId, includeInactive, supabase]);
+  }, [userId, includeInactive, supabase]);
 
   // ================================================================
-  // FUNCIÓN CREATE CHILD OPTIMIZADA
+  // FUNCIÓN CREATE CHILD REFACTORIZADA
   // ================================================================
 
   const createChild = useCallback(async (childData: ChildInsert): Promise<Child> => {
@@ -185,39 +273,8 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
         throw new Error('Sesión inválida. Inicia sesión nuevamente.');
       }
 
-      // Preparar datos con valores por defecto seguros
-      const insertData = {
-        name: childData.name.trim(),
-        created_by: userId,
-        is_active: true,
-        birth_date: childData.birth_date?.trim() ?? null,
-        diagnosis: childData.diagnosis?.trim() ?? null,
-        notes: childData.notes?.trim() ?? null,
-        avatar_url: childData.avatar_url?.trim() ?? null,
-        emergency_contact: Array.isArray(childData.emergency_contact) ? childData.emergency_contact : [],
-        medical_info: {
-          allergies: [],
-          medications: [],
-          conditions: [],
-          emergency_notes: '',
-          ...childData.medical_info
-        },
-        educational_info: {
-          school: '',
-          grade: '',
-          teacher: '',
-          iep_goals: [],
-          accommodations: [],
-          ...childData.educational_info
-        },
-        privacy_settings: {
-          share_with_specialists: true,
-          share_progress_reports: true,
-          allow_photo_sharing: false,
-          data_retention_months: 36,
-          ...childData.privacy_settings
-        }
-      };
+      // Preparar datos usando helper
+      const insertData = prepareChildInsertData(childData, userId);
 
       // Insertar niño
       const { data: newChild, error: insertError } = await supabase
@@ -232,17 +289,7 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
         .single();
 
       if (insertError) {
-        console.error('❌ Insert error:', insertError);
-        
-        if (insertError.code === '42501') {
-          throw new Error('Sin permisos para crear niños. Verifica la configuración.');
-        } else if (insertError.code === '23505') {
-          throw new Error('Ya existe un niño con datos similares.');
-        } else if (insertError.code === '23514') {
-          throw new Error('Los datos no cumplen con las validaciones requeridas.');
-        } else {
-          throw new Error(`Error al crear niño: ${insertError.message}`);
-        }
+        handleInsertError(insertError);
       }
 
       if (!newChild) {
@@ -251,50 +298,18 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
 
       console.log('✅ Child created successfully:', newChild.name);
 
-      // Crear relación automática padre/madre (opcional)
-      try {
-        const { error: relationError } = await supabase
-          .from('user_child_relations')
-          .insert({
-            user_id: userId,
-            child_id: newChild.id,
-            relationship_type: 'parent',
-            can_edit: true,
-            can_view: true,
-            can_export: true,
-            can_invite_others: true,
-            granted_by: userId,
-            granted_at: new Date().toISOString(),
-            is_active: true,
-            notes: 'Relación creada automáticamente como creador',
-            notification_preferences: {
-              email_alerts: true,
-              weekly_reports: true
-            }
-          });
-
-        if (relationError) {
-          console.warn('⚠️ Relation creation failed (child created successfully):', relationError);
-        } else {
-          console.log('✅ Parent relation created successfully');
-        }
-      } catch (relationError) {
-        console.warn('⚠️ Relation error (ignored):', relationError);
-      }
+      // Crear relación usando helper
+      await createParentRelation(supabase, userId, newChild.id);
 
       // Refrescar lista
       await fetchChildren();
       
-      // Auditoría
-      try {
-        await auditSensitiveAccess(
-          'CREATE_CHILD',
-          newChild.id,
-          `Created child: ${newChild.name}`
-        );
-      } catch (auditError) {
-        console.warn('⚠️ Audit error (ignored):', auditError);
-      }
+      // Auditoría usando helper
+      await handleAuditLog(
+        'CREATE_CHILD',
+        newChild.id,
+        `Created child: ${newChild.name}`
+      );
 
       return newChild;
 
@@ -309,7 +324,7 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
   }, [userId, supabase, fetchChildren]);
 
   // ================================================================
-  // FUNCIÓN UPDATE CHILD
+  // RESTO DE FUNCIONES (sin cambios significativos)
   // ================================================================
 
   const updateChild = useCallback(async (id: string, updates: ChildUpdate): Promise<Child> => {
@@ -321,7 +336,6 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
       setLoading(true);
       setError(null);
 
-      // Verificar permisos
       const canEdit = await userCanEditChild(id, userId);
       if (!canEdit) {
         throw new Error('No tienes permisos para editar este niño');
@@ -341,7 +355,7 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
 
       await fetchChildren();
       
-      await auditSensitiveAccess(
+      await handleAuditLog(
         'UPDATE_CHILD',
         data.id,
         `Updated child: ${data.name}`
@@ -357,10 +371,6 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
     }
   }, [userId, supabase, fetchChildren]);
 
-  // ================================================================
-  // FUNCIONES AUXILIARES
-  // ================================================================
-
   const deleteChild = useCallback(async (id: string): Promise<void> => {
     if (!userId) {
       throw new Error('Usuario no autenticado');
@@ -369,7 +379,6 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
     try {
       setLoading(true);
       
-      // Soft delete
       const { error } = await supabase
         .from('children')
         .update({ is_active: false, updated_at: new Date().toISOString() })
@@ -380,7 +389,7 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
 
       await fetchChildren();
       
-      await auditSensitiveAccess(
+      await handleAuditLog(
         'DELETE_CHILD',
         id,
         'Child marked as inactive'
@@ -442,7 +451,6 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
     return userCanAccessChild(childId, userId);
   }, [userId]);
 
-  // Funciones no implementadas (para futuras versiones)
   const addUserToChild = useCallback(async (): Promise<void> => {
     throw new Error('Función no implementada aún');
   }, []);
@@ -452,10 +460,9 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
   }, []);
 
   // ================================================================
-  // EFFECTS
+  // EFFECTS (sin cambios)
   // ================================================================
 
-  // Efecto inicial
   useEffect(() => {
     mountedRef.current = true;
     
@@ -471,11 +478,9 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
     };
   }, [userId, fetchChildren]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!realtime || !userId) return;
 
-    // Limpiar canal anterior
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
@@ -483,7 +488,6 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
 
     console.log('🔄 Setting up realtime subscription:', channelId);
 
-    // Crear canal único
     const channel = supabase
       .channel(channelId)
       .on('postgres_changes', {
@@ -520,7 +524,6 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
     };
   }, [realtime, userId, channelId, supabase, fetchChildren]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       mountedRef.current = false;

@@ -1,6 +1,4 @@
 // src/components/ui/date-range-picker.tsx
-// Componente de selector de rango de fechas
-
 'use client';
 
 import * as React from 'react';
@@ -24,6 +22,24 @@ interface DatePickerWithRangeProps {
   setDate: (date: DateRange | undefined) => void;
 }
 
+// Función helper para formatear el texto del botón
+const formatDateRangeText = (date?: DateRange): React.ReactNode => {
+  if (!date?.from) {
+    return <span>Seleccionar fechas</span>;
+  }
+
+  if (date.to) {
+    return (
+      <>
+        {format(date.from, 'dd LLL y', { locale: es })} -{' '}
+        {format(date.to, 'dd LLL y', { locale: es })}
+      </>
+    );
+  }
+
+  return format(date.from, 'dd LLL y', { locale: es });
+};
+
 export function DatePickerWithRange({
   className,
   date,
@@ -42,18 +58,7 @@ export function DatePickerWithRange({
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {date?.from ? (
-              date.to ? (
-                <>
-                  {format(date.from, 'dd LLL y', { locale: es })} -{' '}
-                  {format(date.to, 'dd LLL y', { locale: es })}
-                </>
-              ) : (
-                format(date.from, 'dd LLL y', { locale: es })
-              )
-            ) : (
-              <span>Seleccionar fechas</span>
-            )}
+            {formatDateRangeText(date)}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

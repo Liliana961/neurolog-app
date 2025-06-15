@@ -156,7 +156,7 @@ function EmergencyContactForm({ contacts, onChange }: Readonly<EmergencyContactF
       </div>
 
       {contacts.map((contact, index) => (
-        <Card key={`feature-${index}`} className="p-4">
+        <Card key={crypto.randomUUID()} className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor={`contact-name-${index}`}>Nombre</Label>
@@ -250,7 +250,7 @@ function MedicalInfoForm({ medicalInfo, onChange }: Readonly<MedicalInfoFormProp
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         {items.map((item, index) => (
-          <Badge key={index} variant="secondary" className="text-sm">
+          <Badge key={crypto.randomUUID()} variant="secondary" className="text-sm">
             {item}
             <Button
               type="button"
@@ -422,7 +422,7 @@ function EducationalInfoForm({ educationalInfo, onChange }: Readonly<Educational
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             {(educationalInfo.iep_goals ?? []).map((goal: string, index: number) => (
-              <Badge key={index} variant="secondary" className="text-sm">
+              <Badge key={crypto.randomUUID()} variant="secondary" className="text-sm">
                 {goal}
                 <Button
                   type="button"
@@ -466,7 +466,7 @@ function EducationalInfoForm({ educationalInfo, onChange }: Readonly<Educational
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             {(educationalInfo.accommodations ?? []).map((accommodation: string, index: number) => (
-              <Badge key={index} variant="secondary" className="text-sm">
+              <Badge key={crypto.randomUUID()} variant="secondary" className="text-sm">
                 {accommodation}
                 <Button
                   type="button"

@@ -26,7 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useAuth } from '@/components/providers/AuthProvider';
 import { useChildren } from '@/hooks/use-children';
 import { useLogs } from '@/hooks/use-logs';
 import type { 
@@ -337,7 +336,7 @@ interface FiltersBarProps {
   filteredCount: number;
 }
 
-function FiltersBar({ filters, onFiltersChange, children, totalCount, filteredCount }: FiltersBarProps) {
+function FiltersBar({ filters, onFiltersChange, children, totalCount, filteredCount }: Readonly<FiltersBarProps>) {
   return (
     <Card>
       <CardHeader>
@@ -414,7 +413,7 @@ function FiltersBar({ filters, onFiltersChange, children, totalCount, filteredCo
             value={filters.reviewed_status ?? 'all'} 
             onValueChange={(value) => onFiltersChange({ 
               ...filters, 
-              reviewed_status: value === 'all' ? undefined : value as any
+              reviewed_status: value === 'all' ? undefined : value as "reviewed" | "pending"
             })}
           >
             <SelectTrigger>
@@ -495,11 +494,11 @@ function FiltersBar({ filters, onFiltersChange, children, totalCount, filteredCo
 
           {/* Follow-up Status */}
           <Select 
-            value={filters.follow_up_status ?? 'all'} 
-            onValueChange={(value) => onFiltersChange({ 
-              ...filters, 
-              follow_up_status: value === 'all' ? undefined : value as any
-            })}
+          value={filters.follow_up_status ?? 'all'} 
+          onValueChange={(value) => onFiltersChange({ 
+            ...filters, 
+            follow_up_status: value === 'all' ? undefined : value as "required" | "completed"
+          })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Seguimiento" />
@@ -583,7 +582,7 @@ export default function LogsPage() {
         
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (
-            <Card key={`loading-card-${i}`} className="p-6">
+            <Card key={`loading-card-${Date.now()}-${i}`} className="p-6">
               <div className="flex items-start space-x-4">
                 <div className="w-12 h-12 bg-gray-200 rounded-full animate-pulse" />
                 <div className="flex-1 space-y-2">

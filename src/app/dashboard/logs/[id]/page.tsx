@@ -51,7 +51,11 @@ export default function LogDetailPage() {
   const logId = params.id as string;
   const { user } = useAuth();
   const { loading, getLogById, addParentFeedback, markAsReviewed } = useLogs();
-  
+  const getMoodDescription = (score: number) => {
+  if (score <= 2) return 'Necesita atención';
+  if (score <= 3) return 'Normal';
+  return 'Muy positivo';
+  };
   const [log, setLog] = useState<LogWithDetails | null>(null);
   const [feedback, setFeedback] = useState('');
   const [specialistNotes, setSpecialistNotes] = useState('');
@@ -245,8 +249,7 @@ export default function LogDetailPage() {
                     <div>
                       <p className="text-lg font-semibold text-gray-900">{log.mood_score}/5</p>
                       <p className="text-sm text-gray-600">
-                        {log.mood_score <= 2 ? 'Necesita atención' : 
-                         log.mood_score <= 3 ? 'Normal' : 'Muy positivo'}
+                        {getMoodDescription(log.mood_score)}
                       </p>
                     </div>
                   </div>
@@ -307,14 +310,14 @@ export default function LogDetailPage() {
               )}
 
               {/* Review Status */}
-              {log.reviewed_by ? (
+              {log.reviewed_by && log.reviewed_at ? (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <div className="flex items-center">
                     <CheckCircleIcon className="h-5 w-5 text-green-600 mr-2" />
                     <h4 className="text-sm font-medium text-green-900">Revisado por especialista</h4>
                   </div>
                   <p className="text-sm text-green-700 mt-1">
-                     {format(new Date(log.reviewed_at!), 'dd MMM yyyy', { locale: es })}
+                    {format(new Date(log.reviewed_at), 'dd MMM yyyy', { locale: es })}
                   </p>
                   {log.specialist_notes && (
                     <div className="mt-3">

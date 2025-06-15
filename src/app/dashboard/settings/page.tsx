@@ -35,6 +35,21 @@ export default function SettingsPage() {
     role: 'parent' as const
   })
 
+  const getRoleDisplayName = (role: string): string => {
+  switch (role) {
+    case 'parent':
+      return 'Padre/Madre';
+    case 'teacher':
+      return 'Docente';
+    case 'specialist':
+      return 'Especialista';
+    case 'admin':
+      return 'Administrador';
+    default:
+      return 'Usuario';
+  }
+};
+
   const [preferences, setPreferences] = useState({
     notifications: true,
     emailAlerts: false,
@@ -185,10 +200,7 @@ export default function SettingsPage() {
               </p>
               <p className="text-sm text-gray-600">{user.email}</p>
               <p className="text-xs text-blue-600 capitalize">
-                {user.role === 'parent' ? 'Padre/Madre' :
-                 user.role === 'teacher' ? 'Docente' :
-                 user.role === 'specialist' ? 'Especialista' : 
-                 user.role === 'admin' ? 'Administrador' : 'Usuario'}
+                {getRoleDisplayName(user.role)}
               </p>
             </div>
           </div>

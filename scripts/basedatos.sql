@@ -7,6 +7,20 @@
 \set LEVEL_CRITICAL 'critical'
 \set SCHEMA_PUBLIC 'public'
 
+-- Roles de usuario
+\set ROLE_PARENT 'parent'
+\set ROLE_TEACHER 'teacher'
+\set ROLE_SPECIALIST 'specialist'
+\set ROLE_ADMIN 'admin'
+\set ROLE_OBSERVER 'observer'
+\set ROLE_FAMILY 'family'
+
+-- Valores por defecto
+\set DEFAULT_TIMEZONE 'America/Guayaquil'
+\set DEFAULT_PREFERENCES '{}'
+\set DEFAULT_ATTACHMENTS '[]'
+\set DEFAULT_TAGS '{}'
+
 -- Deshabilitar RLS temporalmente
 ALTER TABLE IF EXISTS daily_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS user_child_relations DISABLE ROW LEVEL SECURITY;
@@ -50,16 +64,15 @@ CREATE TABLE profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   full_name TEXT NOT NULL,
-  role TEXT CHECK (role IN ('parent', 'teacher', 'specialist', 'admin')) DEFAULT 'parent',
-  avatar_url TEXT,
+  role TEXT CHECK (role IN (:'ROLE_PARENT', :'ROLE_TEACHER', :'ROLE_SPECIALIST', :'ROLE_ADMIN')) DEFAULT :'ROLE_PARENT',  avatar_url TEXT,
   phone TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   last_login TIMESTAMPTZ,
   failed_login_attempts INTEGER DEFAULT 0,
   last_failed_login TIMESTAMPTZ,
   account_locked_until TIMESTAMPTZ,
-  timezone TEXT DEFAULT 'America/Guayaquil',
-  preferences JSONB DEFAULT '{}',
+  timezone TEXT DEFAULT :'DEFAULT_TIMEZONE',
+  preferences JSONB DEFAULT :'DEFAULT_PREFERENCES',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -100,7 +113,7 @@ CREATE TABLE user_child_relations (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   child_id UUID REFERENCES children(id) ON DELETE CASCADE NOT NULL,
-  relationship_type TEXT CHECK (relationship_type IN ('parent', 'teacher', 'specialist', 'observer', 'family')) NOT NULL,
+  relationship_type TEXT CHECK (relationship_type IN (:'ROLE_PARENT', :'ROLE_TEACHER', :'ROLE_SPECIALIST', :'ROLE_OBSERVER', :'ROLE_FAMILY')) NOT NULL,
   can_edit BOOLEAN DEFAULT FALSE,
   can_view BOOLEAN DEFAULT TRUE,
   can_export BOOLEAN DEFAULT FALSE,
@@ -124,14 +137,15 @@ CREATE TABLE daily_logs (
   title TEXT NOT NULL CHECK (length(trim(title)) >= 2),
   content TEXT NOT NULL,
   mood_score INTEGER CHECK (mood_score >= 1 AND mood_score <= 10),
-  intensity_level TEXT CHECK (intensity_level IN (:'LEVEL_LOW', :'LEVEL_MEDIUM', :'LEVEL_HIGH')) DEFAULT :'LEVEL_MEDIUM',
+  intensity_level TEXT CHECK (intensity_level IN (:'LEVEL_LOW', :'LEVEL_MEDIUM', :'LEVEL_HIGH')) 
+  DEFAULT :'LEVEL_MEDIUM',
   logged_by UUID REFERENCES profiles(id) NOT NULL,
   log_date DATE DEFAULT CURRENT_DATE,
   is_private BOOLEAN DEFAULT FALSE,
   is_deleted BOOLEAN DEFAULT FALSE,
   is_flagged BOOLEAN DEFAULT FALSE,
-  attachments JSONB DEFAULT '[]',
-  tags TEXT[] DEFAULT '{}',
+  attachments JSONB DEFAULT :'DEFAULT_ATTACHMENTS',
+  tags TEXT[] DEFAULT :'DEFAULT_TAGS',
   location TEXT,
   weather TEXT,
   reviewed_by UUID REFERENCES profiles(id),
@@ -214,7 +228,7 @@ BEGIN
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'parent')
+    COALESCE(NEW.raw_user_meta_data->>'role', :'ROLE_PARENT')
   );
   RETURN NEW;
 END;
@@ -255,7 +269,7 @@ CREATE OR REPLACE FUNCTION user_can_access_child(child_uuid UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
-    SELECT COUNT(*) > 0 FROM children 
+    SELECT 1 FROM children 
     WHERE id = child_uuid 
       AND created_by = auth.uid()
   );
@@ -267,7 +281,7 @@ CREATE OR REPLACE FUNCTION user_can_edit_child(child_uuid UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
-    SELECT COUNT(*) > 0 FROM children 
+    SELECT 1 FROM children 
     WHERE id = child_uuid 
       AND created_by = auth.uid()
   );
@@ -317,7 +331,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE VIEW user_accessible_children AS
 SELECT 
   c.*,
-  'parent'::TEXT as relationship_type,
+  :'ROLE_PARENT'::TEXT as relationship_type,
   true as can_edit,
   true as can_view,
   true as can_export,
@@ -463,7 +477,7 @@ BEGIN
   -- Contar tablas
   SELECT COUNT(*) INTO table_count
   FROM information_schema.tables 
-  WHERE table_schema = 'SCHEMA_PUBLIC' 
+  WHERE table_schema = :'SCHEMA_PUBLIC' 
     AND table_name IN ('profiles', 'children', 'user_child_relations', 'daily_logs', 'categories', 'audit_logs');
   
   result := result || 'Tablas creadas: ' || table_count || '/6' || E'\n';
@@ -471,7 +485,7 @@ BEGIN
   -- Contar políticas
   SELECT COUNT(*) INTO policy_count
   FROM pg_policies 
-  WHERE schemaname = 'SCHEMA_PUBLIC';
+  WHERE schemaname = :'SCHEMA_PUBLIC';
   
   result := result || 'Políticas RLS: ' || policy_count || E'\n';
   
@@ -491,7 +505,7 @@ BEGIN
   -- Verificar RLS
   IF (SELECT COUNT(*) FROM pg_class c 
       JOIN pg_namespace n ON n.oid = c.relnamespace 
-      WHERE n.nspname = 'SCHEMA_PUBLIC' 
+      WHERE n.nspname = :'SCHEMA_PUBLIC' 
         AND c.relname = 'children' 
         AND c.relrowsecurity = true) > 0 THEN
     result := result || 'RLS: ✅ Habilitado' || E'\n';

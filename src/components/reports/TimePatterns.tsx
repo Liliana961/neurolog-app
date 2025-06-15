@@ -296,7 +296,7 @@ export function AdvancedInsights({ logs }: Readonly<AdvancedInsightsProps>) {
       });
     }
 
-    // Análisis de categorías
+    // Análisis de categorías - CORREGIDO
     const categoryCount = logs.reduce((acc, log) => {
       if (log.category_name) {
         acc[log.category_name] = (acc[log.category_name] ?? 0) + 1;
@@ -306,7 +306,9 @@ export function AdvancedInsights({ logs }: Readonly<AdvancedInsightsProps>) {
 
     const categories = Object.entries(categoryCount);
     if (categories.length > 0) {
-      const mostUsedCategory = categories.sort(([,a], [,b]) => b - a)[0];
+      // Mover sort a declaración separada
+      const sortedCategories = categories.sort(([,a], [,b]) => (b as number) - (a as number));
+      const mostUsedCategory = sortedCategories[0];
       
       insights.push({
         type: 'info',

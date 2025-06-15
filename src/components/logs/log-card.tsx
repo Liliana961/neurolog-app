@@ -40,14 +40,14 @@ export function LogCard({ log }: Readonly<LogCardProps>) {
 
   const moodStars = log.mood_score ? [...Array(5)].map((_, i) => (
     <Star
-      key={`mood-star-${i}`}
-      className={`h-3 w-3 ${
-        i < log.mood_score! 
-          ? 'text-yellow-400 fill-yellow-400' 
+      key={`${log.id}-mood-star-${i}`}
+      className={`h-4 w-4 ${
+        i < log.mood_score!
+          ? 'text-yellow-400 fill-current' 
           : 'text-gray-300'
       }`}
     />
-  )) : null
+  )) : null;
 
   return (
     <>

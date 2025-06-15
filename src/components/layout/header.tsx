@@ -116,6 +116,21 @@ export function Header() {
       .slice(0, 2);
   };
 
+  const getRoleDisplayName = (role?: string): string => {
+  switch (role) {
+    case 'parent':
+      return 'Padre/Madre';
+    case 'teacher':
+      return 'Docente';
+    case 'specialist':
+      return 'Especialista';
+    case 'admin':
+      return 'Admin';
+    default:
+      return 'Usuario';
+  }
+};
+
   const quickActions = [
     { 
       label: 'Nuevo Registro', 
@@ -292,7 +307,7 @@ export function Header() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center space-x-2 h-8 sm:h-10 px-2 sm:px-3">
                 <Avatar className="h-6 w-6 sm:h-8 sm:w-8">
-                  <AvatarImage src={user?.avatar_url} />
+                  <AvatarImage src={user?.avatar_url || "/placeholder.svg"} />
                   <AvatarFallback className="text-xs sm:text-sm">
                     {getUserInitials()}
                   </AvatarFallback>
@@ -302,10 +317,7 @@ export function Header() {
                     {user?.full_name ?? 'Usuario'}
                   </p>
                   <p className="text-xs text-gray-500 capitalize">
-                    {user?.role === 'parent' ? 'Padre/Madre' : 
-                     user?.role === 'teacher' ? 'Docente' :
-                     user?.role === 'specialist' ? 'Especialista' :
-                     user?.role === 'admin' ? 'Admin' : 'Usuario'}
+                    {getRoleDisplayName(user?.role)}
                   </p>
                 </div>
                 <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />

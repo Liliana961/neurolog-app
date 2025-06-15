@@ -66,17 +66,14 @@ function SkeletonAvatar() {
 function SkeletonText({ lines = 3 }: Readonly<{ lines?: number }>) {
   return (
     <div className="space-y-2">
-      {Array.from({ length: lines }).map((_, i) => (
+      {Array.from({ length: lines }).map(() => (
         <Skeleton 
-          key={`skeleton-line-${i}`}
-          className={cn(
-            "h-4",
-            i === lines - 1 ? "w-[80%]" : "w-full"
-          )} 
+          key={crypto.randomUUID()}
+          className="h-4 w-full"
         />
       ))}
     </div>
-  )
+  );
 }
 
 export { 

@@ -99,7 +99,7 @@ function QuickStats({ stats, loading }: Readonly<QuickStatsProps>) {
     return (
       <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
-          <Card key={`stat-loading-${i}`} className="animate-pulse">
+          <Card key={crypto.randomUUID()} className="animate-pulse">
             <CardContent className="p-3 sm:p-4 md:p-6">
               <div className="flex items-center justify-between space-x-2">
                 <div className="space-y-2 flex-1">
@@ -159,7 +159,7 @@ function AccessibleChildren({ children, loading }:  Readonly<AccessibleChildrenP
     return (
       <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {[...Array(3)].map((_, i) => (
-          <Card key={`child-loading-${i}`} className="animate-pulse">
+          <Card key={crypto.randomUUID()} className="animate-pulse">
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center space-x-3 sm:space-x-4">
                 <Skeleton className="h-12 w-12 sm:h-16 sm:w-16 rounded-full" />
@@ -251,14 +251,19 @@ function AccessibleChildren({ children, loading }:  Readonly<AccessibleChildrenP
                   <span>Actividad semanal</span>
                   <span>{child.weekly_logs ?? 0}/7</span>
                 </div>
-                <Progress 
-                  value={((child.weekly_logs ?? 0) / 7) * 100} 
-                  className="h-2"
-                  indicatorClassName={
-                    (child.weekly_logs ?? 0) >= 5 ? "bg-green-500" :
-                    (child.weekly_logs ?? 0) >= 3 ? "bg-yellow-500" : "bg-red-500"
-                  }
-                />
+                {(() => {
+                  const weeklyLogs = child.weekly_logs ?? 0;
+                  const indicatorClass = weeklyLogs >= 5 ? "bg-green-500" :
+                                        weeklyLogs >= 3 ? "bg-yellow-500" : "bg-red-500";
+                  
+                  return (
+                    <Progress 
+                      value={(weeklyLogs / 7) * 100} 
+                      className="h-2"
+                      indicatorClassName={indicatorClass}
+                    />
+                  );
+                })()}
               </div>
             </CardContent>
           </Card>
@@ -288,7 +293,7 @@ function RecentLogs({ logs, loading }: Readonly<RecentLogsProps>) {
     return (
       <div className="space-y-3 sm:space-y-4">
         {[...Array(3)].map((_, i) => (
-          <div key={`recent-log-loading-${i}`} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 rounded-lg border bg-white animate-pulse">
+          <div key={crypto.randomUUID()} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 rounded-lg border bg-white animate-pulse">
             <Skeleton className="h-10 w-10 rounded-full" />
             <div className="flex-1 space-y-2">
               <Skeleton className="h-4 w-3/4" />
@@ -364,11 +369,15 @@ function RecentLogs({ logs, loading }: Readonly<RecentLogsProps>) {
                 <span className="font-medium">{log.child_name}</span>
                 <span className="mx-1">•</span>
                 <span>
-                  {isToday(new Date(log.created_at)) ? 'Hoy' :
-                   isYesterday(new Date(log.created_at)) ? 'Ayer' :
-                   format(new Date(log.created_at), 'dd MMM', { locale: es })}
+                  {(() => {
+                    const date = new Date(log.created_at);
+                    if (isToday(date)) return 'Hoy';
+                    if (isYesterday(date)) return 'Ayer';
+                    return format(date, 'dd MMM', { locale: es });
+                  })()}
                 </span>
               </div>
+            </div>
               
               <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button variant="ghost" size="sm" asChild>

@@ -4,7 +4,19 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+interface TableProps extends React.ComponentProps<"table"> {
+  caption?: string;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
+}
+
+function Table({ 
+  className, 
+  caption,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  ...props 
+}: TableProps) {
   return (
     <div
       data-slot="table-container"
@@ -13,8 +25,13 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
         {...props}
-      />
+      >
+        {caption && <TableCaption>{caption}</TableCaption>}
+        {props.children}
+      </table>
     </div>
   )
 }
@@ -65,10 +82,19 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   )
 }
 
-function TableHead({ className, ...props }: React.ComponentProps<"th">) {
+interface TableHeadProps extends React.ComponentProps<"th"> {
+  scope?: "col" | "row" | "colgroup" | "rowgroup";
+}
+
+function TableHead({ 
+  className, 
+  scope = "col", 
+  ...props 
+}: TableHeadProps) {
   return (
     <th
       data-slot="table-head"
+      scope={scope}
       className={cn(
         "text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className

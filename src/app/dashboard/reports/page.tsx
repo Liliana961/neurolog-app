@@ -132,31 +132,30 @@ export default function ReportsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Niño</label>
-              <Select value={selectedChild} onValueChange={setSelectedChild}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar niño" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los niños</SelectItem>
-                  {children.map(child => (
-                    <SelectItem key={child.id} value={child.id}>
-                      {child.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <label htmlFor="child-select" className="text-sm font-medium mb-2 block">Niño</label>
+            <Select value={selectedChild} onValueChange={setSelectedChild}>
+              <SelectTrigger id="child-select">
+                <SelectValue placeholder="Seleccionar niño" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los niños</SelectItem>
+                {children.map((child) => (
+                  <SelectItem key={child.id} value={child.id}>
+                    {child.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
             
-            <div>
-              <label className="text-sm font-medium mb-2 block">Período</label>
-              <DatePickerWithRange 
-                date={dateRange}
-                onDateChange={setDateRange}
-              />
-            </div>
-
+          <div>
+            <label id="date-range-label" className="text-sm font-medium mb-2 block">Período</label>
+            <DatePickerWithRange 
+              date={dateRange}
+              setDate={setDateRange}
+              aria-label="Seleccionar período de fechas"            />
+          </div>
             <div className="flex items-end">
               <Button 
                 variant="outline"
@@ -349,7 +348,7 @@ interface MetricCardProps {
   suffix?: string;
 }
 
-function MetricCard({ title, value, icon: Icon, color, subtitle, suffix }: MetricCardProps) {
+function MetricCard({ title, value, icon: Icon, color, subtitle, suffix }: Readonly<MetricCardProps>) {
   const colorClasses = {
     blue: 'bg-blue-100 text-blue-600',
     red: 'bg-red-100 text-red-600',

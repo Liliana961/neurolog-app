@@ -11,6 +11,15 @@ import { cn } from '@/lib/utils';
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
+// Mover los componentes fuera del componente padre
+const IconLeft = (props: React.ComponentProps<'svg'>) => (
+  <ChevronLeftIcon className="h-4 w-4" {...props} />
+);
+
+const IconRight = (props: React.ComponentProps<'svg'>) => (
+  <ChevronRightIcon className="h-4 w-4" {...props} />
+);
+
 function Calendar({
   className,
   classNames,
@@ -60,8 +69,8 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ ...props }) => <ChevronLeftIcon className="h-4 w-4" />,
-        IconRight: ({ ...props }) => <ChevronRightIcon className="h-4 w-4" />,
+        IconLeft,
+        IconRight,
       }}
       {...props}
     />
