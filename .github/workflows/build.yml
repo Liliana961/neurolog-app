@@ -1,19 +1,19 @@
-name: Build
+name: SonarCloud
 on:
   push:
-    branches:
-      - mejoras-calidad
+    branches: [ main, mejoras-calidad ]
   pull_request:
-    types: [opened, synchronize, reopened]
+    branches: [ main ]
+
 jobs:
-  sonarqube:
-    name: SonarQube
-    runs-on: windows-latest
+  sonarcloud:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: SonarCloud Scan
+      uses: SonarSource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}  # ← ESTO ES CLAVE
